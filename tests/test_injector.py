@@ -1,7 +1,3 @@
-# Deterministic — drives dispatches directly, no agent/LLM.
-# step:2 fires on exactly the 3rd dispatch, once; first_call:read_file fires on
-# first read not second; same rule run twice fires identically (no RNG).
-
 from injector import FailureRule, InjectingRegistry
 from tools.sim import SimWorld, make_sim
 
