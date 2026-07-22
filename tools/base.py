@@ -21,9 +21,11 @@ class ToolRegistry:
     def __init__(self, tools: list[Tool]):
         self._tools = {t.name: t for t in tools}
 
-    def anthropic_tools(self) -> list[dict]:
+    def openai_tools(self) -> list[dict]:
         return [
-            {"name": t.name, "description": t.description, "input_schema": t.schema}
+            {"type": "function",
+             "function": {"name": t.name, "description": t.description,
+                          "parameters": t.schema}}
             for t in self._tools.values()
         ]
 
