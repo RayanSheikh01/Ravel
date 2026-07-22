@@ -122,3 +122,5 @@ def test_live_smoke_finishes_done_with_plan():
                      task_id="trivial", backend="sim")
     assert traj.stop_reason == "done"
     assert any("plan:" in t.assistant_text.lower() for t in traj.turns)
+    
+
