@@ -1,16 +1,16 @@
 [
   {
-    "task": "sum_csvs",
+    "task": "fix_and_run",
     "kind": "baseline",
     "success": 0.0,
     "steps": 1,
     "verdict": "baseline"
   },
   {
-    "task": "sum_csvs",
+    "task": "fix_and_run",
     "kind": "injected",
     "seed": 0,
-    "mode": "vanish",
+    "mode": "hard_error",
     "success": 0.0,
     "steps": 1,
     "injection_step": null,
@@ -21,10 +21,10 @@
     "verdict": "flail"
   },
   {
-    "task": "sum_csvs",
+    "task": "fix_and_run",
     "kind": "injected",
     "seed": 1,
-    "mode": "vanish",
+    "mode": "hard_error",
     "success": 0.0,
     "steps": 1,
     "injection_step": null,
@@ -35,10 +35,10 @@
     "verdict": "flail"
   },
   {
-    "task": "sum_csvs",
+    "task": "fix_and_run",
     "kind": "injected",
     "seed": 2,
-    "mode": "vanish",
+    "mode": "hard_error",
     "success": 0.0,
     "steps": 1,
     "injection_step": null,

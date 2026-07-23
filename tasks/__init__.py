@@ -22,9 +22,21 @@ class Task:
     default_rule: FailureRule | None = None  # the failure that makes sense here
 
     def make_registry(
-        self, world: SimWorld, *, inject_rule: FailureRule | None = None
+        self,
+        world: SimWorld,
+        *,
+        inject_rule: FailureRule | None = None,
+        backend: str = "sim",
+        sandbox_dir: str | None = None,
     ) -> InjectingRegistry:
-        return InjectingRegistry(make_sim(world), inject_rule)
+        if backend == "real":
+            from tools.real import make_real  # local import: real backend is optional
+            if sandbox_dir is None:
+                raise ValueError("backend='real' needs sandbox_dir")
+            inner = make_real(world, sandbox_dir)
+        else:
+            inner = make_sim(world)
+        return InjectingRegistry(inner, inject_rule)
 
 
 REGISTRY: dict[str, Task] = {}

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import tempfile
 from collections import Counter
 
 from agent import run_agent
@@ -21,12 +23,17 @@ import tasks.fetch_merge   # noqa: F401
 
 
 def _run(task, rule, *, model, backend):
-    """One agent run; returns (trajectory, goal_grade)."""
+    """One agent run; returns (trajectory, goal_grade). Fresh sandbox per real run."""
     world = task.setup()
-    reg = task.make_registry(world, inject_rule=rule)
-    traj = run_agent(task.prompt, reg, task_id=task.id, backend=backend, model=model)
-    traj.injection_step = reg.injection_step  # copy off the injecting registry
-    return traj, task.goal_check(world)
+    sandbox = tempfile.mkdtemp(prefix="ravel_sbx_") if backend == "real" else None
+    try:
+        reg = task.make_registry(world, inject_rule=rule, backend=backend, sandbox_dir=sandbox)
+        traj = run_agent(task.prompt, reg, task_id=task.id, backend=backend, model=model)
+        traj.injection_step = reg.injection_step  # copy off the injecting registry
+        return traj, task.goal_check(world)
+    finally:
+        if sandbox:
+            shutil.rmtree(sandbox, ignore_errors=True)
 
 
 def main():
