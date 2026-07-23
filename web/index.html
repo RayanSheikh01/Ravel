@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan-Repair Dashboard</title>
+<style>
+  :root { --bg:#12141a; --panel:#1b1e27; --line:#2c303c; --fg:#e6e8ee; --mut:#8b90a0;
+          --acc:#5aa9ff; --ok:#4ec46e; --bad:#ff6b6b; --warn:#ffb454; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+  h1 { font-size:18px; margin:0; }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); }
+  main { display:grid; grid-template-columns:1fr 1fr; gap:20px; padding:20px; align-items:start; }
+  .full { grid-column:1 / -1; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px; }
+  .panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--mut); margin:0 0 12px; }
+  label { display:block; margin:8px 0; }
+  .tasks label { display:inline-flex; align-items:center; gap:6px; margin-right:14px; }
+  input[type=text], input[type=number], select { background:var(--bg); color:var(--fg);
+    border:1px solid var(--line); border-radius:5px; padding:6px 8px; width:180px; }
+  button { background:var(--acc); color:#04101f; border:0; border-radius:6px; padding:9px 18px;
+    font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th, td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-weight:600; }
+  tr.click { cursor:pointer; }
+  tr.click:hover { background:#232733; }
+  .spin { display:inline-block; width:14px; height:14px; border:2px solid var(--line);
+    border-top-color:var(--acc); border-radius:50%; animation:s .7s linear infinite; vertical-align:-2px; }
+  @keyframes s { to { transform:rotate(360deg); } }
+  .err { background:#3a1c1c; border:1px solid var(--bad); color:#ffd0d0; padding:10px 12px;
+    border-radius:6px; margin-top:12px; white-space:pre-wrap; }
+  .badge { font-size:11px; padding:1px 7px; border-radius:10px; background:var(--warn); color:#241a00; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  .turn { border-top:1px solid var(--line); padding:10px 0; }
+  .turn .plan { color:var(--acc); font-weight:600; }
+  .call { margin:6px 0 6px 16px; padding-left:10px; border-left:2px solid var(--line); }
+  .call code { color:var(--warn); }
+  pre { white-space:pre-wrap; word-break:break-word; margin:4px 0; color:var(--mut); }
+  .muted { color:var(--mut); }
+</style>
+</head>
+<body>
+<header><h1>Plan-Repair Dashboard</h1></header>
+<main>
+  <section class="panel">
+    <h2>Run</h2>
+    <div class="tasks" id="tasks"></div>
+    <label>Model <input type="text" id="model" value="qwen2.5-coder"></label>
+    <label>Seeds <input type="number" id="seeds" value="3" min="0"></label>
+    <label>Backend
+      <select id="backend"><option value="sim">sim</option><option value="real">real</option></select>
+    </label>
+    <button id="run">Run</button>
+    <div id="err"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Verdicts</h2>
+    <div id="verdicts" class="muted">No results yet.</div>
+  </section>
+
+  <section class="panel full">
+    <h2>Rows</h2>
+    <div id="rows" class="muted">No results yet.</div>
+  </section>
+
+  <section class="panel full" id="drillpanel" style="display:none">
+    <h2>Trajectory</h2>
+    <div id="drill"></div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+let ROWS = [];
+
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+async function loadTasks() {
+  const tasks = await (await fetch('/tasks')).json();
+  $('#tasks').innerHTML = tasks.map(t =>
+    `<label><input type="checkbox" value="${esc(t.id)}"> ${esc(t.id)} <span class="muted">(${esc(t.mode)})</span></label>`
+  ).join('');
+}
+
+// Verdict table: count injected-row verdicts grouped by a row key. Recomputed
+// client-side so page-load (/results.json = raw rows) and /run share one path.
+function verdictTable(title, groupKey, rows) {
+  const cols = ['replan','partial','flail'];
+  const buckets = {};
+  for (const r of rows) {
+    if (r.kind !== 'injected') continue;
+    const k = r[groupKey] ?? '—';
+    const b = (buckets[k] ??= {});
+    b[r.verdict] = (b[r.verdict] || 0) + 1;
+  }
+  const body = Object.entries(buckets).map(([k, c]) =>
+    `<tr><td>${esc(k)}</td>${cols.map(col => `<td>${c[col]||0}</td>`).join('')}</tr>`).join('');
+  return `<h3 class="muted" style="font-size:12px">${title}</h3>
+    <table><tr><th></th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr>${body}</table>`;
+}
+
+function renderVerdicts() {
+  if (!ROWS.length) return;
+  $('#verdicts').innerHTML =
+    verdictTable('Per task', 'task', ROWS) + verdictTable('Per mode', 'mode', ROWS);
+}
+
+function renderRows() {
+  if (!ROWS.length) { $('#rows').innerHTML = '<span class="muted">No results yet.</span>'; return; }
+  const head = '<tr><th>task</th><th>kind</th><th>success</th><th>steps</th><th>verdict</th><th>recovery</th></tr>';
+  const body = ROWS.map((r, i) => {
+    const inj = r.kind === 'injected';
+    const succ = `<span class="${r.success >= 1 ? 'ok':'bad'}">${r.success}</span>`;
+    return `<tr class="${inj?'click':''}" ${inj?`data-i="${i}"`:''}>
+      <td>${esc(r.task)}</td><td>${esc(r.kind)}</td><td>${succ}</td>
+      <td>${r.steps}</td><td>${esc(r.verdict)}</td><td>${r.recovery_ratio ?? '—'}</td></tr>`;
+  }).join('');
+  $('#rows').innerHTML = `<table>${head}${body}</table>`;
+  document.querySelectorAll('#rows tr.click').forEach(tr =>
+    tr.onclick = () => drill(ROWS[+tr.dataset.i]));
+}
+
+function drill(row) {
+  $('#drillpanel').style.display = '';
+  const turns = (row.trajectory || []).map(t => {
+    const lines = (t.assistant_text || '').split('\n').map(l =>
+      /^\s*plan:/i.test(l) ? `<div class="plan">${esc(l)}</div>` : `<div>${esc(l)}</div>`).join('');
+    const calls = (t.calls || []).map(c => {
+      const okTxt = c.result ? `<span class="${c.result.ok?'ok':'bad'}">${c.result.ok?'ok':'fail'}</span>` : '—';
+      // injected marked per-call via ToolCall.injected (reliable); not via injection_step.
+      return `<div class="call">
+        <code>${esc(c.tool)}</code>(${esc(JSON.stringify(c.args))})
+        ${c.injected ? '<span class="badge">injected</span>' : ''} ${okTxt}
+        ${c.result ? `<pre>${esc(c.result.content)}</pre>` : ''}</div>`;
+    }).join('');
+    return `<div class="turn"><b>step ${t.step}</b>${lines}${calls}</div>`;
+  }).join('');
+  $('#drill').innerHTML = `<div class="muted">${esc(row.task)} · seed ${row.seed ?? '—'} · ${esc(row.verdict)}</div>${turns}`;
+  $('#drillpanel').scrollIntoView({behavior:'smooth'});
+}
+
+$('#run').onclick = async () => {
+  const tasks = [...document.querySelectorAll('#tasks input:checked')].map(c => c.value);
+  if (!tasks.length) { $('#err').innerHTML = '<div class="err">Pick at least one task.</div>'; return; }
+  $('#err').innerHTML = '';
+  const btn = $('#run');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Running';
+  try {
+    const resp = await fetch('/run', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        tasks, model:$('#model').value,
+        seeds:+$('#seeds').value, backend:$('#backend').value,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'run failed');
+    ROWS = data.rows;
+    renderVerdicts(); renderRows();
+  } catch (e) {
+    $('#err').innerHTML = `<div class="err">${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Run';
+  }
+};
+
+loadTasks();
+fetch('/results.json').then(r => r.json()).then(rows => {
+  ROWS = rows; renderVerdicts(); renderRows();
+}).catch(() => {});
+</script>
+</body>
+</html>
