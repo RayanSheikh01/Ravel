@@ -1,0 +1,51 @@
+[
+  {
+    "task": "sum_csvs",
+    "kind": "baseline",
+    "success": 0.0,
+    "steps": 1,
+    "verdict": "baseline"
+  },
+  {
+    "task": "sum_csvs",
+    "kind": "injected",
+    "seed": 0,
+    "mode": "vanish",
+    "success": 0.0,
+    "steps": 1,
+    "injection_step": null,
+    "recovery_steps": 0,
+    "recovery_ratio": 0.0,
+    "flail": false,
+    "plan_changed": null,
+    "verdict": "flail"
+  },
+  {
+    "task": "sum_csvs",
+    "kind": "injected",
+    "seed": 1,
+    "mode": "vanish",
+    "success": 0.0,
+    "steps": 1,
+    "injection_step": null,
+    "recovery_steps": 0,
+    "recovery_ratio": 0.0,
+    "flail": false,
+    "plan_changed": null,
+    "verdict": "flail"
+  },
+  {
+    "task": "sum_csvs",
+    "kind": "injected",
+    "seed": 2,
+    "mode": "vanish",
+    "success": 0.0,
+    "steps": 1,
+    "injection_step": null,
+    "recovery_steps": 0,
+    "recovery_ratio": 0.0,
+    "flail": false,
+    "plan_changed": null,
+    "verdict": "flail"
+  }
+]
