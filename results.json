@@ -4,48 +4,13 @@
     "kind": "baseline",
     "success": 0.0,
     "steps": 1,
-    "verdict": "baseline"
-  },
-  {
-    "task": "fix_and_run",
-    "kind": "injected",
-    "seed": 0,
-    "mode": "hard_error",
-    "success": 0.0,
-    "steps": 1,
-    "injection_step": null,
-    "recovery_steps": 0,
-    "recovery_ratio": 0.0,
-    "flail": false,
-    "plan_changed": null,
-    "verdict": "flail"
-  },
-  {
-    "task": "fix_and_run",
-    "kind": "injected",
-    "seed": 1,
-    "mode": "hard_error",
-    "success": 0.0,
-    "steps": 1,
-    "injection_step": null,
-    "recovery_steps": 0,
-    "recovery_ratio": 0.0,
-    "flail": false,
-    "plan_changed": null,
-    "verdict": "flail"
-  },
-  {
-    "task": "fix_and_run",
-    "kind": "injected",
-    "seed": 2,
-    "mode": "hard_error",
-    "success": 0.0,
-    "steps": 1,
-    "injection_step": null,
-    "recovery_steps": 0,
-    "recovery_ratio": 0.0,
-    "flail": false,
-    "plan_changed": null,
-    "verdict": "flail"
+    "verdict": "baseline",
+    "trajectory": [
+      {
+        "step": 0,
+        "assistant_text": "plan: Define a plan to read the script file, identify and fix the bug, write the fixed content back to the file, and then execute it\n\naction: run {\"cmd\":\"cat script.py\"}\noutput:\nprint(\"Content of script.py:\")\n```\nobj['output']\n```",
+        "calls": []
+      }
+    ]
   }
 ]

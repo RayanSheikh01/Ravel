@@ -7,6 +7,7 @@ injected trials with the task's default_rule. Wire per run:
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import shutil
 import tempfile
@@ -36,35 +37,28 @@ def _run(task, rule, *, model, backend):
             shutil.rmtree(sandbox, ignore_errors=True)
 
 
-def main():
-    ap = argparse.ArgumentParser(description="Plan-repair harness runner.")
-    ap.add_argument("--tasks", nargs="+", required=True, help="Task ids to run.")
-    ap.add_argument("--backend", default="sim", help="Backend label (sim only for now).")
-    ap.add_argument("--seeds", type=int, default=3, help="Injected trials per task.")
-    ap.add_argument("--model", default="qwen2.5-coder", help="Ollama model.")
-    args = ap.parse_args()
-
+def run_tasks(task_ids, seeds, model, backend):
     rows = []
     by_task = {}   # task_id -> Counter(verdict)
     by_mode = {}   # failure mode -> Counter(verdict)
 
-    for task_id in args.tasks:
+    for task_id in task_ids:
         task = REGISTRY.get(task_id)
         if task is None:
             print(f"skip: task '{task_id}' not registered")
             continue
 
-        base, base_grade = _run(task, None, model=args.model, backend=args.backend)
+        base, base_grade = _run(task, None, model=model, backend=backend)
         baseline_steps = max(1, len(base.turns))
         rows.append({"task": task_id, "kind": "baseline", "success": base_grade,
-                     "steps": len(base.turns), "verdict": "baseline"})
+                     "steps": len(base.turns), "verdict": "baseline", "trajectory": [dataclasses.asdict(t) for t in base.turns]})
 
         mode = task.default_rule.mode if task.default_rule else "none"
         by_task.setdefault(task_id, Counter())
         by_mode.setdefault(mode, Counter())
 
-        for i in range(args.seeds):
-            traj, grade = _run(task, task.default_rule, model=args.model, backend=args.backend)
+        for i in range(seeds):
+            traj, grade = _run(task, task.default_rule, model=model, backend=backend)
             m = analyze(traj, baseline_steps, grade)
             by_task[task_id][m.verdict] += 1
             by_mode[mode][m.verdict] += 1
@@ -74,7 +68,40 @@ def main():
                 "injection_step": traj.injection_step,
                 "recovery_steps": m.recovery_steps, "recovery_ratio": round(m.recovery_ratio, 3),
                 "flail": m.flail, "plan_changed": m.plan_changed, "verdict": m.verdict,
+                "trajectory": [dataclasses.asdict(t) for t in traj.turns],
             })
+            
+    with open("results.json", "w") as f:
+            json.dump(rows, f, indent=2)
+
+    return rows, by_task, by_mode
+
+def main():
+    ap = argparse.ArgumentParser(description="Plan-repair harness runner.")
+    ap.add_argument("--tasks", nargs="+", required=True, help="Task ids to run.")
+    ap.add_argument("--backend", default="sim", help="Backend label (sim only for now).")
+    ap.add_argument("--seeds", type=int, default=3, help="Injected trials per task.")
+    ap.add_argument("--model", default="qwen2.5-coder", help="Ollama model.")
+    args = ap.parse_args()
+    
+    # baseline
+    rows, by_task, by_mode = run_tasks(
+        task_ids=args.tasks,
+        seeds=0,
+        model=args.model,
+        backend=args.backend
+    )
+    
+    _print_table("Per task", by_task)
+    _print_table("Per failure mode", by_mode)
+    print("\nwrote results.json")
+        
+    rows, by_task, by_mode = run_tasks(
+        task_ids=args.tasks,
+        seeds=args.seeds,
+        model=args.model,
+        backend=args.backend
+    )
 
     with open("results.json", "w") as f:
         json.dump(rows, f, indent=2)
