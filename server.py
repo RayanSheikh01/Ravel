@@ -9,13 +9,8 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from run import run_tasks
+from run import run_tasks  # noqa: F401 — importing run.py runs load_tasks(), populating REGISTRY
 from tasks import REGISTRY
-
-# Import registers the tasks into REGISTRY (same as run.py).
-import tasks.build_report  # noqa: F401
-import tasks.fix_and_run   # noqa: F401
-import tasks.fetch_merge   # noqa: F401
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 INDEX = os.path.join(HERE, "web", "index.html")

@@ -1,0 +1,17 @@
+id: sum_csvs
+prompt: >
+  The data/ directory holds CSV files, each a single column of numbers. Sum
+  every number across all files under data/ and write just the total to
+  output.csv.
+world:
+  files:
+    data/a.csv: "1\n2\n3\n"
+    data/b.csv: "4\n5\n6\n"
+    data/c.csv: "7\n8\n9\n"
+failure:
+  mode: vanish
+  trigger: touch:data/b.csv
+goal:
+  check: file_equals
+  file: output.csv
+  expected: "45"

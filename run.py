@@ -15,12 +15,9 @@ from collections import Counter
 
 from agent import run_agent
 from analyze import analyze
-from tasks import REGISTRY
+from tasks import REGISTRY, load_tasks
 
-# Import registers the tasks into REGISTRY.
-import tasks.build_report  # noqa: F401
-import tasks.fix_and_run   # noqa: F401
-import tasks.fetch_merge   # noqa: F401
+load_tasks()  # validate + register every tasks/*.yaml into REGISTRY
 
 
 def _run(task, rule, *, model, backend):

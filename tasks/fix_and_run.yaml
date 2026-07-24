@@ -1,0 +1,16 @@
+id: fix_and_run
+prompt: >
+  script.py has a bug. Read it, fix the bug by rewriting the file, then run it
+  with the command `python script.py`. Write the command's output to output.txt.
+world:
+  files:
+    script.py: "prnit(6 * 7)\n"
+  commands:
+    python script.py: "42\n"
+failure:
+  mode: hard_error
+  trigger: first_call:run
+goal:
+  check: file_equals
+  file: output.txt
+  expected: "42"

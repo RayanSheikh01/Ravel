@@ -1,0 +1,17 @@
+id: fetch_merge
+prompt: >
+  GET the JSON records at http://api/user and http://api/role, merge their
+  fields into a single JSON object, and write it to merged.json.
+world:
+  api:
+    http://api/user: '{"name": "Ada"}'
+    http://api/role: '{"role": "admin"}'
+failure:
+  mode: corrupt
+  trigger: first_call:http_get
+goal:
+  check: json_fields
+  file: merged.json
+  fields:
+    name: Ada
+    role: admin

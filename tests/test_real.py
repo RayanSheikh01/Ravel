@@ -44,9 +44,9 @@ def test_real_tools_hit_disk_and_run(tmp_path):
 @pytest.mark.skipif(os.getenv("RUN_OLLAMA") != "1", reason="live model; set RUN_OLLAMA=1")
 def test_fix_and_run_on_real_backend(tmp_path):
     from agent import run_agent
-    from tasks import REGISTRY
-    import tasks.fix_and_run  # noqa: F401 — registers the task
+    from tasks import REGISTRY, load_tasks
 
+    load_tasks("tasks")  # register the migrated .yaml tasks
     task = REGISTRY["fix_and_run"]
     world = task.setup()
     reg = task.make_registry(world, backend="real", sandbox_dir=str(tmp_path))

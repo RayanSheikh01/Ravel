@@ -12,9 +12,8 @@ import pytest
 from agent import run_agent
 from tasks import CHECKERS, REGISTRY, load_tasks
 from tools.sim import SimWorld
-import tasks.build_report  # noqa: F401 — import registers the task
-import tasks.fix_and_run   # noqa: F401
-import tasks.fetch_merge   # noqa: F401
+
+load_tasks("tasks")  # populate REGISTRY from the migrated .yaml task files
 
 
 def test_all_three_tasks_registered():
