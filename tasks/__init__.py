@@ -58,6 +58,7 @@ class Task:
     setup: Callable[[], SimWorld]          # fresh world for one run
     goal_check: Callable[[SimWorld], float]  # 0.0..1.0 grade after the run
     default_rule: FailureRule | None = None  # the failure that makes sense here
+    uploaded: bool = False                   # untrusted (user-submitted) -> sim-only
 
     def make_registry(
         self,
@@ -67,6 +68,12 @@ class Task:
         backend: str = "sim",
         sandbox_dir: str | None = None,
     ) -> InjectingRegistry:
+        # Step 5 safety chokepoint: every real-backend run routes through here.
+        # An uploaded task's world.commands would be run as a real shell — refuse.
+        if backend == "real" and self.uploaded:
+            raise ValueError(
+                f"uploaded task {self.id!r} is sim-only; its commands are untrusted"
+            )
         if backend == "real":
             from tools.real import make_real  # local import: real backend is optional
             if sandbox_dir is None:
@@ -177,3 +184,20 @@ def load_tasks(dir: str = "tasks") -> dict[str, Task]:
         loaded[task.id] = task
     REGISTRY.update(loaded)
     return loaded
+
+
+def add_task_from_yaml(text: str, source: str = "<upload>") -> Task:
+    """Validate one uploaded YAML task and register it, flagged sim-only.
+
+    Same validation as load_tasks (safe_load, no code execution), so an
+    uploaded task is safe to load. It is NOT written to the tasks/ dir — it
+    lives in REGISTRY only for this process, so a restart can't silently
+    promote it to a trusted builtin. Rejects ids that collide with an
+    existing task.
+    """
+    task = _build_task(source, yaml.safe_load(text))
+    if task.id in REGISTRY:
+        _bad(source, f"task id already exists: {task.id!r}")
+    task.uploaded = True
+    REGISTRY[task.id] = task
+    return task

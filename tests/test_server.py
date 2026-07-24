@@ -25,6 +25,38 @@ def test_tasks_route():
         srv.shutdown()
 
 
+def test_upload_and_sim_only_gate():
+    from server import Handler
+
+    srv = ThreadingHTTPServer(("localhost", 0), Handler)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    conn = http.client.HTTPConnection("localhost", port)
+    good = "id: srv_up\nprompt: p\ngoal: {check: file_exists, file: o}\n"
+    try:
+        # upload validates + registers
+        conn.request("POST", "/upload", body=good)
+        resp = conn.getresponse()
+        assert resp.status == 200
+        assert json.loads(resp.read())["id"] == "srv_up"
+
+        # shows up in /tasks flagged uploaded
+        conn.request("GET", "/tasks")
+        tasks = {t["id"]: t for t in json.loads(conn.getresponse().read())}
+        assert tasks["srv_up"]["uploaded"] is True
+
+        # real backend refused for an uploaded task (403, before any run)
+        conn.request("POST", "/run",
+                     body=json.dumps({"tasks": ["srv_up"], "backend": "real", "seeds": 0}))
+        assert conn.getresponse().status == 403
+
+        # malformed task -> 400
+        conn.request("POST", "/upload", body="id: x\n")  # missing prompt + goal
+        assert conn.getresponse().status == 400
+    finally:
+        srv.shutdown()
+
+
 def test_trajectory_serialization():
     from run import run_tasks
     from collections import Counter

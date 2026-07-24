@@ -10,7 +10,7 @@ import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from run import run_tasks  # noqa: F401 — importing run.py runs load_tasks(), populating REGISTRY
-from tasks import REGISTRY
+from tasks import REGISTRY, add_task_from_yaml
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 INDEX = os.path.join(HERE, "web", "index.html")
@@ -49,25 +49,51 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         elif self.path == "/tasks":
             self._json([
-                {"id": t.id, "mode": t.default_rule.mode if t.default_rule else "none"}
+                {"id": t.id, "mode": t.default_rule.mode if t.default_rule else "none",
+                 "uploaded": t.uploaded}
                 for t in REGISTRY.values()
             ])
         else:
             self._json({"error": "not found"}, 404)
 
+    def _read_body(self) -> bytes:
+        return self.rfile.read(int(self.headers.get("Content-Length", 0)))
+
     def do_POST(self):
-        if self.path != "/run":
+        if self.path == "/upload":
+            self._upload()
+        elif self.path == "/run":
+            self._run()
+        else:
             self._json({"error": "not found"}, 404)
+
+    def _upload(self):
+        try:
+            task = add_task_from_yaml(self._read_body().decode("utf-8"))
+        except Exception as e:  # validation failure -> 400, message names the reason
+            self._json({"error": str(e)}, 400)
             return
-        length = int(self.headers.get("Content-Length", 0))
-        body = json.loads(self.rfile.read(length) or "{}")
+        self._json({"id": task.id,
+                    "mode": task.default_rule.mode if task.default_rule else "none",
+                    "uploaded": True})
+
+    def _run(self):
+        body = json.loads(self._read_body() or b"{}")
+        backend = body.get("backend", "sim")
+        # Step 5 gate: uploaded tasks never touch the real backend.
+        if backend == "real":
+            blocked = [t for t in body.get("tasks", [])
+                       if getattr(REGISTRY.get(t), "uploaded", False)]
+            if blocked:
+                self._json({"error": f"uploaded tasks are sim-only: {blocked}"}, 403)
+                return
         try:
             # ponytail: single blocking run, no job queue -- add streaming only if latency hurts.
             rows, by_task, by_mode = run_tasks(
                 task_ids=body["tasks"],
                 seeds=body.get("seeds", 3),
                 model=body.get("model", "qwen2.5-coder"),
-                backend=body.get("backend", "sim"),
+                backend=backend,
             )
         except Exception as e:  # Ollama-down etc. -- surface it, don't swallow.
             self._json({"error": str(e)}, 500)

@@ -58,6 +58,15 @@
   </section>
 
   <section class="panel">
+    <h2>Upload task</h2>
+    <p class="muted" style="margin:0 0 8px">Paste a YAML task. Uploaded tasks are <b>sim-only</b>.</p>
+    <textarea id="yaml" rows="10" placeholder="id: my_task&#10;prompt: ...&#10;goal:&#10;  check: file_exists&#10;  file: out.txt"
+      style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:8px;font:12px/1.5 ui-monospace,monospace;resize:vertical"></textarea>
+    <button id="upload" style="margin-top:8px">Upload</button>
+    <div id="uperr"></div>
+  </section>
+
+  <section class="panel">
     <h2>Verdicts</h2>
     <div id="verdicts" class="muted">No results yet.</div>
   </section>
@@ -82,7 +91,7 @@ const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'
 async function loadTasks() {
   const tasks = await (await fetch('/tasks')).json();
   $('#tasks').innerHTML = tasks.map(t =>
-    `<label><input type="checkbox" value="${esc(t.id)}"> ${esc(t.id)} <span class="muted">(${esc(t.mode)})</span></label>`
+    `<label><input type="checkbox" value="${esc(t.id)}" data-uploaded="${t.uploaded?1:0}"> ${esc(t.id)} <span class="muted">(${esc(t.mode)})</span>${t.uploaded?' <span class="badge">uploaded</span>':''}</label>`
   ).join('');
 }
 
@@ -143,9 +152,36 @@ function drill(row) {
   $('#drillpanel').scrollIntoView({behavior:'smooth'});
 }
 
+$('#upload').onclick = async () => {
+  const yaml = $('#yaml').value;
+  if (!yaml.trim()) { $('#uperr').innerHTML = '<div class="err">Paste a YAML task first.</div>'; return; }
+  $('#uperr').innerHTML = '';
+  const btn = $('#upload');
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/upload', {
+      method:'POST', headers:{'Content-Type':'text/yaml'}, body: yaml,
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'upload failed');
+    $('#yaml').value = '';
+    await loadTasks();  // new task appears in the list
+  } catch (e) {
+    $('#uperr').innerHTML = `<div class="err">${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+};
+
 $('#run').onclick = async () => {
-  const tasks = [...document.querySelectorAll('#tasks input:checked')].map(c => c.value);
+  const checked = [...document.querySelectorAll('#tasks input:checked')];
+  const tasks = checked.map(c => c.value);
   if (!tasks.length) { $('#err').innerHTML = '<div class="err">Pick at least one task.</div>'; return; }
+  // Mirror the server's Step 5 gate client-side for a fast, clear message.
+  if ($('#backend').value === 'real' && checked.some(c => c.dataset.uploaded === '1')) {
+    $('#err').innerHTML = '<div class="err">Uploaded tasks are sim-only — switch backend to sim.</div>';
+    return;
+  }
   $('#err').innerHTML = '';
   const btn = $('#run');
   btn.disabled = true;

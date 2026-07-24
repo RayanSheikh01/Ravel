@@ -116,6 +116,23 @@ def test_duplicate_id_across_files_raises(tmp_path):
         load_tasks(str(tmp_path))
 
 
+# --- Step 5: uploaded tasks are sim-only. ---
+
+def test_uploaded_task_is_sim_only():
+    from tasks import add_task_from_yaml
+    task = add_task_from_yaml("id: up_gate\nprompt: p\ngoal: {check: file_exists, file: o}\n")
+    assert task.uploaded is True
+    task.make_registry(task.setup(), backend="sim")  # sim allowed
+    with pytest.raises(ValueError, match="sim-only"):
+        task.make_registry(task.setup(), backend="real", sandbox_dir="ignored")
+
+
+def test_upload_duplicate_id_rejected():
+    from tasks import add_task_from_yaml
+    with pytest.raises(ValueError, match="already exists"):
+        add_task_from_yaml("id: sum_csvs\nprompt: p\ngoal: {check: file_exists, file: o}\n")
+
+
 @pytest.mark.skipif(os.getenv("RUN_OLLAMA") != "1", reason="live model; set RUN_OLLAMA=1")
 @pytest.mark.parametrize("task_id", ["sum_csvs", "fix_and_run", "fetch_merge"])
 def test_baseline_reaches_goal(task_id):
