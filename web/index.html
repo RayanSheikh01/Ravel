@@ -59,7 +59,7 @@
 
   <section class="panel">
     <h2>Upload task</h2>
-    <p class="muted" style="margin:0 0 8px">Paste a YAML task. Uploaded tasks are <b>sim-only</b>.</p>
+    <p class="muted" style="margin:0 0 8px">Paste a YAML task. On the <b>real</b> backend, uploaded tasks run their commands in a locked-down container.</p>
     <textarea id="yaml" rows="10" placeholder="id: my_task&#10;prompt: ...&#10;goal:&#10;  check: file_exists&#10;  file: out.txt"
       style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:8px;font:12px/1.5 ui-monospace,monospace;resize:vertical"></textarea>
     <button id="upload" style="margin-top:8px">Upload</button>
@@ -177,11 +177,6 @@ $('#run').onclick = async () => {
   const checked = [...document.querySelectorAll('#tasks input:checked')];
   const tasks = checked.map(c => c.value);
   if (!tasks.length) { $('#err').innerHTML = '<div class="err">Pick at least one task.</div>'; return; }
-  // Mirror the server's Step 5 gate client-side for a fast, clear message.
-  if ($('#backend').value === 'real' && checked.some(c => c.dataset.uploaded === '1')) {
-    $('#err').innerHTML = '<div class="err">Uploaded tasks are sim-only — switch backend to sim.</div>';
-    return;
-  }
   $('#err').innerHTML = '';
   const btn = $('#run');
   btn.disabled = true;

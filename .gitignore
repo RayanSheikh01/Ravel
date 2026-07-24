@@ -1,6 +1,7 @@
 IMPLEMENTATION.md
 WEBUIPlan.md
 DESIGN.md
-.vscode/
+.vscode/    
 __pycache__/
 TASK_TEMPLATES.md
+REAL_BACKEND_PLAN.md

@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import subprocess
 
 from run import run_tasks  # noqa: F401 — importing run.py runs load_tasks(), populating REGISTRY
 from tasks import REGISTRY, add_task_from_yaml
@@ -80,13 +81,6 @@ class Handler(BaseHTTPRequestHandler):
     def _run(self):
         body = json.loads(self._read_body() or b"{}")
         backend = body.get("backend", "sim")
-        # Step 5 gate: uploaded tasks never touch the real backend.
-        if backend == "real":
-            blocked = [t for t in body.get("tasks", [])
-                       if getattr(REGISTRY.get(t), "uploaded", False)]
-            if blocked:
-                self._json({"error": f"uploaded tasks are sim-only: {blocked}"}, 403)
-                return
         try:
             # ponytail: single blocking run, no job queue -- add streaming only if latency hurts.
             rows, by_task, by_mode = run_tasks(
@@ -103,6 +97,8 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     server = ThreadingHTTPServer(("localhost", 8000), Handler)
+    if subprocess.run(["docker", "info"], capture_output=True).returncode != 0:
+        print("warning: docker not running; real-backend runs will fail")
     print("serving on http://localhost:8000")
     server.serve_forever()
 

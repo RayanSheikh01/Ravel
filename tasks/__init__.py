@@ -1,9 +1,3 @@
-"""Task contract + registry.
-
-A Task bundles a prompt with the world it runs in and the grader that scores
-the result. Tasks share the sim tools, so make_registry needs no per-task
-override — it just wraps make_sim, optionally with an injection rule.
-"""
 from __future__ import annotations
 
 import glob
@@ -68,12 +62,6 @@ class Task:
         backend: str = "sim",
         sandbox_dir: str | None = None,
     ) -> InjectingRegistry:
-        # Step 5 safety chokepoint: every real-backend run routes through here.
-        # An uploaded task's world.commands would be run as a real shell — refuse.
-        if backend == "real" and self.uploaded:
-            raise ValueError(
-                f"uploaded task {self.id!r} is sim-only; its commands are untrusted"
-            )
         if backend == "real":
             from tools.real import make_real  # local import: real backend is optional
             if sandbox_dir is None:

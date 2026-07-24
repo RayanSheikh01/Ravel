@@ -25,7 +25,7 @@ def test_tasks_route():
         srv.shutdown()
 
 
-def test_upload_and_sim_only_gate():
+def test_upload_registers_and_flags():
     from server import Handler
 
     srv = ThreadingHTTPServer(("localhost", 0), Handler)
@@ -44,11 +44,6 @@ def test_upload_and_sim_only_gate():
         conn.request("GET", "/tasks")
         tasks = {t["id"]: t for t in json.loads(conn.getresponse().read())}
         assert tasks["srv_up"]["uploaded"] is True
-
-        # real backend refused for an uploaded task (403, before any run)
-        conn.request("POST", "/run",
-                     body=json.dumps({"tasks": ["srv_up"], "backend": "real", "seeds": 0}))
-        assert conn.getresponse().status == 403
 
         # malformed task -> 400
         conn.request("POST", "/upload", body="id: x\n")  # missing prompt + goal
@@ -79,3 +74,4 @@ def test_trajectory_serialization():
         assert isinstance(traj_list, list)
         for t in traj_list:
             assert isinstance(t, dict)
+            

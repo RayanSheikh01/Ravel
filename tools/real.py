@@ -7,7 +7,9 @@ from tools.base import Tool, ToolRegistry
 from tools.sim import HttpGet, SimWorld
 from trajectory import ToolResult
 
-RUN_TIMEOUT = 30  # ponytail: fixed cap; make it a task/CLI knob only if a task needs longer
+SANDBOX_IMAGE = os.environ.get("RAVEL_SANDBOX_IMAGE", "python:3.12-slim")
+RUN_TIMEOUT = 30          # already exists
+MAX_OUTPUT = 64 * 1024    # truncate stdout+stderr to this many bytes
 
 
 def _safe(sandbox_dir: str, path: str) -> str:
@@ -82,14 +84,28 @@ class RealRun(Tool):
         self.world, self.dir = world, sandbox_dir
 
     def call(self, args) -> ToolResult:
-        # shell=True is deliberate: this tool exists to execute the agent's own
-        # commands inside its sandbox. Confined to sandbox_dir and timeout-capped.
+        docker_cmd = [
+            "docker", "run", "--rm",
+            "--network", "none",
+            "--user", "1000:1000",
+            "--read-only",
+            "--tmpfs", "/tmp:rw,size=64m",
+            "--memory", "512m", "--cpus", "1", "--pids-limit", "128",
+            "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges",
+            "-v", f"{self.dir}:/work",       # self.dir is already abspath
+            "-w", "/work",
+            SANDBOX_IMAGE,
+            "sh", "-c", args["cmd"],
+        ]
         try:
-            proc = subprocess.run(args["cmd"], shell=True, cwd=self.dir,
-                                  capture_output=True, text=True, timeout=RUN_TIMEOUT)
+            proc = subprocess.run(docker_cmd, capture_output=True, text=True,
+                                timeout=RUN_TIMEOUT)
         except subprocess.TimeoutExpired:
             return ToolResult(False, "error: timed out")
-        out = (proc.stdout or "") + (proc.stderr or "")
+        except FileNotFoundError:
+            return ToolResult(False, "error: docker not installed")
+        out = ((proc.stdout or "") + (proc.stderr or ""))[:MAX_OUTPUT]
         return ToolResult(proc.returncode == 0, out or f"exit {proc.returncode}")
 
 

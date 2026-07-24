@@ -10,7 +10,7 @@ import os
 import pytest
 
 from agent import run_agent
-from tasks import CHECKERS, REGISTRY, load_tasks
+from tasks import CHECKERS, REGISTRY, add_task_from_yaml, load_tasks
 from tools.sim import SimWorld
 
 load_tasks("tasks")  # populate REGISTRY from the migrated .yaml task files
@@ -116,21 +116,26 @@ def test_duplicate_id_across_files_raises(tmp_path):
         load_tasks(str(tmp_path))
 
 
-# --- Step 5: uploaded tasks are sim-only. ---
-
-def test_uploaded_task_is_sim_only():
-    from tasks import add_task_from_yaml
-    task = add_task_from_yaml("id: up_gate\nprompt: p\ngoal: {check: file_exists, file: o}\n")
-    assert task.uploaded is True
-    task.make_registry(task.setup(), backend="sim")  # sim allowed
-    with pytest.raises(ValueError, match="sim-only"):
-        task.make_registry(task.setup(), backend="real", sandbox_dir="ignored")
 
 
 def test_upload_duplicate_id_rejected():
-    from tasks import add_task_from_yaml
     with pytest.raises(ValueError, match="already exists"):
         add_task_from_yaml("id: sum_csvs\nprompt: p\ngoal: {check: file_exists, file: o}\n")
+
+
+def test_uploaded_task_allowed_on_real_backend(tmp_path):
+    """Gate lifted: building a real registry for an uploaded task must not raise.
+
+    The run tool is now containerized, so uploaded (untrusted) tasks are safe on
+    the real backend. No Docker needed here — make_real only shells out to docker
+    when the run tool is *called*, not at construction.
+    """
+    task = add_task_from_yaml("id: real_ok\nprompt: p\ngoal: {check: file_exists, file: o}\n")
+    try:
+        reg = task.make_registry(SimWorld(), backend="real", sandbox_dir=str(tmp_path))
+        assert reg is not None
+    finally:
+        REGISTRY.pop("real_ok", None)
 
 
 @pytest.mark.skipif(os.getenv("RUN_OLLAMA") != "1", reason="live model; set RUN_OLLAMA=1")
