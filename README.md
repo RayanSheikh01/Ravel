@@ -53,6 +53,8 @@ python server.py          # http://localhost:8000
 Pick tasks, set model/seeds/backend, run, and drill into any injected trajectory
 turn by turn. You can also **upload a task** as YAML from the UI (see safety below).
 
+![Plan-Repair dashboard](DashboardScreenshot.png)
+
 ## Tasks are YAML
 
 A task is data conforming to one schema — no Python, validated at load. Files live
