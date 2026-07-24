@@ -10,7 +10,7 @@ import os
 import pytest
 
 from agent import run_agent
-from tasks import CHECKERS, REGISTRY
+from tasks import CHECKERS, REGISTRY, load_tasks
 from tools.sim import SimWorld
 import tasks.build_report  # noqa: F401 — import registers the task
 import tasks.fix_and_run   # noqa: F401
@@ -52,6 +52,69 @@ def test_file_exists():
     fn = CHECKERS["file_exists"]
     assert fn(SimWorld(files={"a.txt": ""}), file="a.txt") == 1.0
     assert fn(SimWorld(), file="a.txt") == 0.0
+
+
+# --- Step 2: schema + load_tasks. No agent, no API. ---
+
+GOOD_TASK = """
+id: demo
+prompt: write 45 to output.csv
+world:
+  files:
+    data/a.csv: "1\\n2\\n3\\n"
+failure:
+  mode: vanish
+  trigger: touch:data/a.csv
+goal:
+  check: file_equals
+  file: output.csv
+  expected: "45"
+"""
+
+
+def _write(tmp_path, name, text):
+    p = tmp_path / name
+    p.write_text(text, encoding="utf-8")
+    return tmp_path
+
+
+def test_good_task_loads_and_grades(tmp_path):
+    load_tasks(str(_write(tmp_path, "demo.yaml", GOOD_TASK)))
+    task = REGISTRY["demo"]
+    assert task.prompt == "write 45 to output.csv"
+    assert task.default_rule.mode == "vanish"
+    world = task.setup()
+    assert isinstance(world, SimWorld) and world is not task.setup()  # fresh each call
+    world.files["output.csv"] = "45\n"
+    assert task.goal_check(world) == 1.0
+
+
+BAD_TASKS = {
+    "not-mapping": "- just\n- a\n- list\n",
+    "unknown-key": "id: x\nprompt: p\ngoal: {check: file_exists, file: o}\nbogus: 1\n",
+    "missing-goal": "id: x\nprompt: p\n",
+    "bad-mode": "id: x\nprompt: p\ngoal: {check: file_exists, file: o}\nfailure: {mode: nope, trigger: step:1}\n",
+    "bad-trigger": "id: x\nprompt: p\ngoal: {check: file_exists, file: o}\nfailure: {mode: vanish, trigger: whenever}\n",
+    "bad-checker": "id: x\nprompt: p\ngoal: {check: no_such_check, file: o}\n",
+    "missing-arg": "id: x\nprompt: p\ngoal: {check: file_equals, file: o}\n",  # no expected
+    "path-escape": "id: x\nprompt: p\nworld: {files: {'../evil': hi}}\ngoal: {check: file_exists, file: o}\n",
+    "empty-id": "id: ''\nprompt: p\ngoal: {check: file_exists, file: o}\n",
+}
+
+
+@pytest.mark.parametrize("name,text", list(BAD_TASKS.items()))
+def test_bad_task_raises_with_filename(tmp_path, name, text):
+    fname = f"{name}.yaml"
+    with pytest.raises(ValueError, match=fname):
+        load_tasks(str(_write(tmp_path, fname, text)))
+
+
+def test_duplicate_id_across_files_raises(tmp_path):
+    one = "id: dup\nprompt: p\ngoal: {check: file_exists, file: o}\n"
+    _write(tmp_path, "a.yaml", one)
+    _write(tmp_path, "b.yaml", one)
+    with pytest.raises(ValueError, match="duplicate id"):
+        load_tasks(str(tmp_path))
 
 
 @pytest.mark.skipif(os.getenv("RUN_OLLAMA") != "1", reason="live model; set RUN_OLLAMA=1")

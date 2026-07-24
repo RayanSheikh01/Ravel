@@ -49,6 +49,20 @@ MODES = {
 }
 
 
+TRIGGER_KINDS = ("step", "first_call", "touch")  # the prefixes _fires understands
+
+
+def valid_trigger(trigger: str) -> bool:
+    """True iff `_fires` can parse this trigger string. Single source of truth
+    for the loader's validation so the two never drift."""
+    kind, sep, target = str(trigger).partition(":")
+    if sep != ":" or not target:
+        return False
+    if kind == "step":
+        return target.lstrip("-").isdigit()
+    return kind in TRIGGER_KINDS
+
+
 class InjectingRegistry:
     """Wraps a ToolRegistry. Same interface, so agent.py needs no changes.
 
