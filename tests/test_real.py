@@ -1,9 +1,3 @@
-"""Step 7: real tools hit disk; run shells out into a locked-down container.
-
-File/read/list tests need no Docker. Every test that exercises `run` (container)
-is gated behind a live Docker daemon; the end-to-end via run_agent also needs
-RUN_OLLAMA=1.
-"""
 from __future__ import annotations
 
 import os
